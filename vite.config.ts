@@ -8,7 +8,10 @@ const __dirname = path.dirname(__filename);
 
 export default defineConfig({
   plugins: [react()],
-  base: "/gorv/", // Kendi repo adınızla güncellendi
+  base: "/gorv/",
+
+  root: path.resolve(__dirname, 'client'), 
+
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "client", "src"),
@@ -17,7 +20,8 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: "dist/public",
+
+    outDir: path.resolve(__dirname, '..', 'dist', 'public'),
     emptyOutDir: true,
   },
   server: {

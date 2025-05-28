@@ -9,9 +9,7 @@ const __dirname = path.dirname(__filename);
 export default defineConfig({
   plugins: [react()],
   base: "./", 
-
   root: path.resolve(__dirname, 'client'), 
-
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "client", "src"),
@@ -20,8 +18,7 @@ export default defineConfig({
     },
   },
   build: {
-
-    outDir: path.resolve(__dirname, '..', 'dist', 'public'),
+    outDir: '../dist/public', 
     emptyOutDir: true,
   },
   server: {

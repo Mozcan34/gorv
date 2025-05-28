@@ -1,7 +1,8 @@
+// src/components/TaskList.tsx
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { type Task } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { type Task } from "@shared/schema"; // Task tip tanımınızın doğru olduğundan emin olun
+import { apiRequest } from "@/lib/queryClient"; // Güncellenmiş apiRequest'i kullanıyoruz
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,44 +10,88 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import TaskForm from "./task-form";
-import { useToast } from "@/hooks/use-toast";
+import TaskForm from "./task-form"; // TaskForm bileşeni
+import { useToast } from "@/hooks/use-toast"; // Toast bildirimleri
 import { Edit, Trash2 } from "lucide-react";
 
-interface TaskListProps {
-  tasks: Task[];
-  isLoading: boolean;
-  getStatusText: (status: string) => string;
-  getPriorityText: (priority: string) => string;
-}
+// TaskListProps kaldırıldı, çünkü veriyi içeride useQuery ile çekeceğiz
 
-export default function TaskList({ tasks, isLoading, getStatusText, getPriorityText }: TaskListProps) {
+export default function TaskList() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [deletingTaskId, setDeletingTaskId] = useState<number | null>(null);
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null); // UUID'ler string olduğu için
 
+  // Görevleri çekmek için useQuery
+  const { data: tasks, isLoading, error } = useQuery<Task[]>({
+    queryKey: ["tasks"], // Sorgu anahtarı
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/"); // Apps Script'ten GET isteği
+      const rawTasks = await response.json(); // Gelen JSON verisi
+
+      // Gelen veriyi Task tipine dönüştürürken Apps Script'ten gelen özel durumları işle
+      return rawTasks.map((task: any) => ({
+        id: task.id,
+        title: task.title,
+        description: task.description || '', // Açıklama boş gelebilir
+        // Apps Script'ten 'TRUE'/'FALSE' stringi olarak gelebilir, boolean'a çevir
+        isCompleted: String(task.isCompleted).toUpperCase() === 'TRUE',
+        dueDate: task.dueDate ? new Date(task.dueDate) : null, // Tarihleri Date objesine çevir
+        status: task.status || 'open', // Varsayılan durum
+        priority: task.priority || 'medium', // Varsayılan öncelik
+        createdAt: task.createdAt ? new Date(task.createdAt) : null,
+        updatedAt: task.updatedAt ? new Date(task.updatedAt) : null,
+      })) as Task[];
+    },
+    // Hata durumunda yeniden deneme ayarları
+    retry: 3, // 3 kez dene
+    retryDelay: 1000, // 1 saniye bekle
+  });
+
+  // Görev silme işlemi için useMutation
   const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/tasks/${id}`);
+    mutationFn: async (id: string) => {
+      // DELETE isteğini Apps Script'e POST olarak gönderiyoruz, payload içinde id ile
+      const response = await apiRequest("DELETE", "/", { id: id });
+      return response.json(); // Apps Script'ten gelen yanıtı döndür
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] }); // Görev listesini yeniden çek
+      queryClient.invalidateQueries({ queryKey: ["tasks", "stats"] }); // İstatistikleri de güncelleyebiliriz
       toast({
         title: "Başarılı",
         description: "İş başarıyla silindi.",
       });
-      setDeletingTaskId(null);
+      setDeletingTaskId(null); // Silme onay penceresini kapat
     },
-    onError: () => {
+    onError: (err) => {
+      console.error("İş silinirken hata:", err);
       toast({
         title: "Hata",
-        description: "İş silinirken bir hata oluştu.",
+        description: err instanceof Error ? err.message : "İş silinirken bir hata oluştu.",
         variant: "destructive",
       });
     },
   });
+
+  // Durum ve Öncelik için metin ve renk yardımcıları (varsa projenizin genelinde bunlar ayrı bir util dosyasından gelmeli)
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case "open": return "Açık";
+      case "progress": return "Devam Eden";
+      case "completed": return "Tamamlandı";
+      default: return "Bilinmiyor";
+    }
+  };
+
+  const getPriorityText = (priority: string) => {
+    switch (priority) {
+      case "high": return "Yüksek";
+      case "medium": return "Orta";
+      case "low": return "Düşük";
+      default: return "Bilinmiyor";
+    }
+  };
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
@@ -69,9 +114,10 @@ export default function TaskList({ tasks, isLoading, getStatusText, getPriorityT
   const formatDate = (date: Date | string | null) => {
     if (!date) return "-";
     const d = new Date(date);
-    return d.toLocaleDateString("tr-TR");
+    return d.toLocaleDateString("tr-TR"); // Yerel tarih formatı
   };
 
+  // Yükleme durumu
   if (isLoading) {
     return (
       <Card className="shadow-md">
@@ -92,7 +138,25 @@ export default function TaskList({ tasks, isLoading, getStatusText, getPriorityT
     );
   }
 
-  if (tasks.length === 0) {
+  // Hata durumu
+  if (error) {
+    return (
+      <Card className="shadow-md">
+        <CardHeader>
+          <CardTitle>İş Listesi</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8 text-red-500">
+            <p>Veriler yüklenirken bir hata oluştu: {error.message}</p>
+            <p className="text-sm text-gray-400 mt-2">Lütfen Apps Script dağıtımınızı ve URL'nizi kontrol edin.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Görev yoksa
+  if (!tasks || tasks.length === 0) {
     return (
       <Card className="shadow-md">
         <CardHeader>
@@ -108,6 +172,7 @@ export default function TaskList({ tasks, isLoading, getStatusText, getPriorityT
     );
   }
 
+  // Görevler varsa listele
   return (
     <>
       <Card className="shadow-md overflow-hidden">
@@ -185,9 +250,9 @@ export default function TaskList({ tasks, isLoading, getStatusText, getPriorityT
             <DialogTitle>İş Düzenle</DialogTitle>
           </DialogHeader>
           {editingTask && (
-            <TaskForm 
-              task={editingTask} 
-              onSuccess={() => setEditingTask(null)} 
+            <TaskForm
+              task={editingTask}
+              onSuccess={() => setEditingTask(null)}
             />
           )}
         </DialogContent>

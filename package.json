@@ -3,16 +3,16 @@
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
-  "homepage": "https://Mozcan34.github.io/gorv", // Kendi GitHub kullanıcı adınız ve repo adınızla güncellendi
+  "homepage": "https://Mozcan34.github.io/gorv", 
   "scripts": {
     "dev": "NODE_ENV=development tsx server/index.ts",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
-    "start": "cross-env NODE_ENV=production PORT=3000 node dist/index.js", // Port 3000 olarak güncellendi
+    "start": "cross-env NODE_ENV=production PORT=3000 node dist/index.js",
     "check": "tsc",
     "db:push": "drizzle-kit push",
-    "predeploy": "npm run build:client", // `deploy` öncesi client build'i için yeni betik
-    "deploy": "gh-pages -d dist/public", // GitHub Pages'a dağıtım betiği
-    "build:client": "vite build" // Sadece client (frontend) için build betiği
+    "predeploy": "npm run build:client",
+    "deploy": "gh-pages -d dist/public",
+    "build:client": "vite build" 
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
